@@ -26,7 +26,7 @@ CONFIG = {
     "device": "cuda:0" if torch.cuda.is_available() else "cpu",
     "amino_acids": ['A', 'V', 'F', 'I', 'L','D','E','K','S','T','Y','C','N','Q', 'P','M', 'R', 'H', 'W', 'G','X'],
     "paths": {
-        "b_factor_model": "/Users/hikimiwada/Documents/先端生命科学研究/de_novo_design/Pandev_Model_Files/Tensile_Strength/b_factor_model.pth",
+        "b_factor_model": "/Users/hikimiwada/Documents/先端生命科学研究/de_novo_design/Pandev_Model_Files/b_factor_model.pth",
         "property_prediction_model": "/Users/hikimiwada/Documents/先端生命科学研究/de_novo_design/Pandev_Model_Files/Tensile_Strength/best.pth",
         "feature_names": "/Users/hikimiwada/Documents/先端生命科学研究/de_novo_design/Pandev_Model_Files/Tensile_Strength/tensile_features_name.npy",
         "input_sequences_json": "input_sequences.json"
