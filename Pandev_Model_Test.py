@@ -1,4 +1,5 @@
 import torch
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 import numpy as np
 import math
 from torch.utils.data import Dataset, DataLoader
@@ -109,24 +110,24 @@ def one_hot_encoding_batch(input_sequence_batch, num_files_per_sample, seq_lengt
 
 # LSTM Model for B-Factor Prediction
 class RNN(nn.Module):
-    def __init__(self, input_size, hidden_size1, hidden_size2, num_layers, device_for_bn): # seq_len removed, device_for_bn added
+    def __init__(self, input_size, hidden_size1, hidden_size2, num_layers, seq_len,num_classes=1):
         super(RNN, self).__init__()
         self.num_layers = num_layers
         self.hidden_size1 = hidden_size1
         self.hidden_size2 = hidden_size2
-        # self.seq_len = seq_len # Not explicitly used in forward if using pack_padded_sequence
+        self.seq_len = seq_len
 
         self.bnn1 = nn.Linear(input_size, 32)
-        self.bnn2 = nn.Linear(32, 64)
-        self.bnn3 = nn.Linear(64, 64)
-        self.bnn4 = nn.Linear(64, 64)
+        self.bnn2 = nn.Linear(32,64)
+        self.bnn3 = nn.Linear(64,64)
+        self.bnn4 = nn.Linear(64,64)
 
         self.lstm1 = nn.LSTM(64, hidden_size1, num_layers, batch_first=True, bidirectional=True, dropout=0.5)
-        # BatchNorm1d device should match the device the model will be on.
-        self.bn_lstm1 = nn.BatchNorm1d(2 * hidden_size1) # device parameter removed, will be handled by .to(device)
-        
-        self.nn1 = nn.Linear(2 * hidden_size1, 2 * hidden_size1)
-        self.nn2 = nn.Linear(2 * hidden_size1, 512)
+        self.bn_lstm1 = nn.BatchNorm1d(2*hidden_size1,device=device)
+        # self.lstm2 = nn.LSTM(2*hidden_size1, hidden_size2, num_layers, batch_first=True, bidirectional=True, dropout=0.5)
+        # self.bn_lstm2 = nn.BatchNorm1d(2*hidden_size2,device=device)
+        self.nn1 = nn.Linear(2*hidden_size1, 2*hidden_size1)
+        self.nn2 = nn.Linear(2*hidden_size1, 512)
         self.nn3 = nn.Linear(512, 512)
         self.nn4 = nn.Linear(512, 256)
         self.nn5 = nn.Linear(256, 256)
@@ -134,79 +135,109 @@ class RNN(nn.Module):
         self.nn7 = nn.Linear(128, 32)
         self.nn8 = nn.Linear(32, 1)
 
+
         self.relu = nn.ReLU()
-        self.tanh = nn.Tanh() # Not used in forward
-        self.drop = nn.Dropout(p=0.5) # Not used in forward
+        self.tanh = nn.Tanh()
+        # self.batch = nn.BatchNorm1d()
+        self.drop = nn.Dropout(p=0.5)
 
     def forward(self, x, array_lengths):
-        # x is expected to be on the correct device already
-        initial_batch_size = x.size(0)
-        initial_seq_len = x.size(1) # This is max_seq_len in the padded batch
+        # Set initial hidden states (and cell states for LSTM)
+        # print(x.size(0))
+        inital_seq_len = x.size(1)
+        x = Variable(x.float()).to(device)
 
-        x = torch.reshape(x, (x.size(0) * x.size(1), x.size(2))) # (batch*seq, features)
+        x = torch.reshape(x, (x.size(0)*x.size(1), x.size(2)))
 
-        out = self.relu(self.bnn1(x))
-        out = self.relu(self.bnn2(out))
-        out = self.relu(self.bnn3(out))
-        out = self.relu(self.bnn4(out))
+        ## before nn
+        out = self.bnn1(x)
+        out = self.relu(out)
+        out = self.bnn2(out)
+        out = self.relu(out)
+        out = self.bnn3(out)
+        out = self.relu(out)
+        out = self.bnn4(out)
+        out = self.relu(out)
 
-        out = torch.reshape(out, (initial_batch_size, initial_seq_len, out.size(1))) # (batch, seq, processed_features)
-        
-        # Pack sequence
-        # Ensure array_lengths are on CPU for pack_padded_sequence
-        pack = nn.utils.rnn.pack_padded_sequence(out, array_lengths.cpu(), batch_first=True, enforce_sorted=False)
-        
-        # Initialize hidden and cell states on the same device as the input
-        h0 = torch.zeros(2 * self.num_layers, initial_batch_size, self.hidden_size1, device=x.device)
-        c0 = torch.zeros(2 * self.num_layers, initial_batch_size, self.hidden_size1, device=x.device)
+        ## reshaping again
+        out = torch.reshape(out, (-1, inital_seq_len, out.size(1)))
+        # print(out.size())
+        # print(aaaaa)
 
-        out_packed, _ = self.lstm1(pack, (h0, c0))
-        
-        # Unpack sequence
-        unpacked, unpacked_len = torch.nn.utils.rnn.pad_packed_sequence(out_packed, batch_first=True)
-        # unpacked shape: (batch_size, actual_max_seq_len_in_batch, 2*hidden_size1)
-        
-        # Potentially apply BatchNorm1d here if needed, after permuting
-        # out_permuted = unpacked.permute(0, 2, 1) # (batch_size, 2*hidden_size1, actual_max_seq_len_in_batch)
-        # out_bn = self.bn_lstm1(out_permuted)
-        # out = out_bn.permute(0, 2, 1) # (batch_size, actual_max_seq_len_in_batch, 2*hidden_size1)
-        # For now, following original logic which applies NN layers directly after reshape
+        # out = torch.permute(out, (0,2,1))
+
+        pack = nn.utils.rnn.pack_padded_sequence(out, array_lengths, batch_first=True, enforce_sorted=False)
+        h0 = Variable(torch.zeros(2*self.num_layers, x.size(0), self.hidden_size1).to(device))
+        c0 = Variable(torch.zeros(2*self.num_layers, x.size(0), self.hidden_size1).to(device))
+        h1 = Variable(torch.zeros(2*self.num_layers, self.hidden_size1, self.hidden_size2).to(device))
+        c1 = Variable(torch.zeros(2*self.num_layers, self.hidden_size1, self.hidden_size2).to(device))
+
+        # Forward propagate RNN
+        out, _ = self.lstm1(pack, (h0,c0))
+        del(h0)
+        del(c0)
+        # out, _ = self.lstm2(out, (h1,c1))
+        gc.collect()
+        unpacked, unpacked_len = torch.nn.utils.rnn.pad_packed_sequence(out, batch_first=True)
+        this_batch_len = unpacked.size(1)
         out = unpacked
+        # print('before', out.size())
+        out = torch.reshape(out, (out.size(0)*out.size(1), out.size(2)))
 
-        this_batch_actual_max_len = unpacked.size(1)
-        out = torch.reshape(out, (out.size(0) * out.size(1), out.size(2))) # (batch*actual_seq, features_lstm)
+        ##nn
+        out = self.nn1(out)
+        out = self.relu(out)
+        out = self.nn2(out)
+        out = self.relu(out)
+        out = self.nn3(out)
+        out = self.relu(out)
+        out = self.nn4(out)
+        out = self.relu(out)
+        out = self.nn5(out)
+        out = self.relu(out)
+        out = self.nn6(out)
+        out = self.relu(out)
+        out = self.nn7(out)
+        out = self.relu(out)
+        out = self.nn8(out)
 
-        out = self.relu(self.nn1(out))
-        out = self.relu(self.nn2(out))
-        out = self.relu(self.nn3(out))
-        out = self.relu(self.nn4(out))
-        out = self.relu(self.nn5(out))
-        out = self.relu(self.nn6(out))
-        out = self.relu(self.nn7(out))
-        out = self.nn8(out) # Final layer, usually no ReLU for regression
+        ## reshaping
+        out = torch.reshape(out, (-1, this_batch_len, 1))
+        # print(out.size())
+        # print(aaaaa)
 
-        out = torch.reshape(out, (initial_batch_size, this_batch_actual_max_len, 1))
-        
-        gc.collect() # Consider if gc.collect() is truly necessary here
         return out
 
 # Property Prediction Network
-class network(nn.Module): # Renamed from 'network' for clarity
-    def __init__(self, input_features):
+# CNN + RNN Model
+class network(nn.Module):
+    def __init__(self):
         super(network, self).__init__()
-        self.nn = nn.Sequential(
-            nn.Linear(input_features, 128), nn.ReLU(),
-            nn.Linear(128, 64), nn.ReLU(),
-            nn.Linear(64, 24), nn.ReLU(),
-            nn.Linear(24, 12), nn.ReLU(),
-            nn.Linear(12, 12), nn.ReLU(),
-            nn.Linear(12, 8), nn.ReLU(),
-            nn.Linear(8, 8), nn.ReLU(),
-            nn.Linear(8, 1)
-        )
+
+        # nn layers
+        self.nn = nn.Sequential(nn.Linear(911,128),
+                                nn.ReLU(),
+                                nn.Linear(128,64),
+                                nn.ReLU(),
+                                nn.Linear(64,24),
+                                nn.ReLU(),
+                                nn.Linear(24,12),
+                                nn.ReLU(),
+                                nn.Linear(12,12),
+                                nn.ReLU(),
+                                nn.Linear(12,8),
+                                nn.ReLU(),
+                                nn.Linear(8,8),
+                                nn.ReLU(),
+                                nn.Linear(8,1)
+                                )
 
     def forward(self, x):
-        return self.nn(x)
+        # out3 = x3
+        # out5 = x5
+        out = self.nn(x)
+
+        return out
 
 # --- Model Loading Function ---
 def load_model(model_class, model_path, device, *args, **kwargs):
