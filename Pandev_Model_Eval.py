@@ -20,7 +20,9 @@ from Pandev_Model_Test import (
     load_model,
 )
 
-def predict_tensile_for_sequence(
+feature_name = "tensile_strength"
+
+def predict_feature_for_sequence(
     sequence: str,
     protein_type: str,
     b_model: torch.nn.Module,
@@ -96,11 +98,11 @@ def main():
     p.add_argument(
         "--input_csv",
         default="Pandev_Model_Files/PandevModel_evaluation_dataset.csv",
-        help="CSV with columns: sequence, protein_type, tensile_strength"
+        help=f"CSV with columns: sequence, protein_type, {feature_name}"
     )
     p.add_argument(
         "--output_csv",
-        default="tensile_strength_predictions.csv",
+        default= f"{feature_name}_predictions.csv",
         help="where to save the results"
     )
     args = p.parse_args()
@@ -134,26 +136,26 @@ def main():
         seq   = row.get("sequence", "")
         ptype = row.get("protein_type", "")
         try:
-            pred = predict_tensile_for_sequence(seq, ptype, b_model, p_model, all_feats)
+            pred = predict_feature_for_sequence(seq, ptype, b_model, p_model, all_feats)
         except Exception as e:
             print(f"Error on row type={ptype!r}, len={len(seq)}: {e}")
             pred = float("nan")
         preds.append(pred)
-    df["predicted_tensile_strength"] = preds
+    df[f"predicted_{feature_name}"] = preds
 
     # 5) Drop any rows with NaNs in actual or predicted
     n_total = len(df)
-    df_valid = df.dropna(subset=["tensile_strength", "predicted_tensile_strength"])
+    df_valid = df.dropna(subset=[feature_name, f"predicted_{feature_name}"])
     n_valid = len(df_valid)
     print(f"Evaluating on {n_valid}/{n_total} rows (dropped {n_total-n_valid} with NaNs)")
 
     # 6) Compute and print metrics
-    mse = mean_squared_error(df_valid["tensile_strength"],
-                             df_valid["predicted_tensile_strength"])
-    mae = mean_absolute_error(df_valid["tensile_strength"],
-                             df_valid["predicted_tensile_strength"])
-    r2  = r2_score(df_valid["tensile_strength"],
-                   df_valid["predicted_tensile_strength"])
+    mse = mean_squared_error(df_valid[feature_name],
+                             df_valid[f"predicted_{feature_name}"])
+    mae = mean_absolute_error(df_valid[feature_name],
+                             df_valid[f"predicted_{feature_name}"])
+    r2  = r2_score(df_valid[feature_name],
+                   df_valid[f"predicted_{feature_name}"])
     print(f"MSE: {mse:.4f}")
     print(f"MAE: {mae:.4f}")
     print(f"R²:  {r2:.4f}")
