@@ -27,8 +27,8 @@ CONFIG = {
     "amino_acids": ['A', 'V', 'F', 'I', 'L','D','E','K','S','T','Y','C','N','Q', 'P','M', 'R', 'H', 'W', 'G','X'],
     "paths": {
         "b_factor_model": "/Users/hikimiwada/Documents/先端生命科学研究/de_novo_design/Pandev_Model_Files/b_factor_model.pth",
-        "property_prediction_model": "/Users/hikimiwada/Documents/先端生命科学研究/de_novo_design/Pandev_Model_Files/Tensile_Strength/best.pth",
-        "feature_names": "/Users/hikimiwada/Documents/先端生命科学研究/de_novo_design/Pandev_Model_Files/Tensile_Strength/tensile_features_name.npy",
+        "property_prediction_model": "/Users/hikimiwada/Documents/先端生命科学研究/de_novo_design/Pandev_Model_Files/Strain/best.pth",
+        "feature_names": "/Users/hikimiwada/Documents/先端生命科学研究/de_novo_design/Pandev_Model_Files/Strain/strain_break_features_name.npy",
         "input_sequences_json": "input_sequences.json"
     },
     "hyperparameters": {
@@ -39,7 +39,7 @@ CONFIG = {
         "rnn_hidden_size2": 512, # Used in RNN hidden state init, even if not for a second LSTM layer
         "rnn_num_layers": 1,
         "rnn_seq_len": 100, # Added: This was 100 in the original Colab script for RNN init
-        "property_nn_input_features": 911 # For checking consistency, not for model init anymore
+        "property_nn_input_features": 1398 # {tensile_strength: 911, strain_at_break: 1398, toughness: 871, young's_modulus: 825}
     },
     "accepted_spidroin_types": ['MaSp1', 'MaSp2', 'MaSp3', 'MaSp','MiSp', 'Spidroin']
 }
@@ -174,9 +174,9 @@ class RNN(nn.Module):
 
 # Property Prediction Network (User's version)
 class network(nn.Module):
-    def __init__(self): # Takes no arguments
+    def __init__(self, property_nn_input_features): # Takes no arguments
         super(network, self).__init__()
-        self.nn = nn.Sequential(nn.Linear(911,128), # Input features hardcoded
+        self.nn = nn.Sequential(nn.Linear(property_nn_input_features,128), # Input features hardcoded
                                 nn.ReLU(), nn.Linear(128,64), nn.ReLU(),
                                 nn.Linear(64,24), nn.ReLU(), nn.Linear(24,12), nn.ReLU(),
                                 nn.Linear(12,12), nn.ReLU(), nn.Linear(12,8), nn.ReLU(),

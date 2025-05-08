@@ -20,7 +20,7 @@ from Pandev_Model_Test import (
     load_model,
 )
 
-feature_name = "tensile_strength"
+feature_name = "strain_at_break"
 
 def predict_feature_for_sequence(
     sequence: str,
