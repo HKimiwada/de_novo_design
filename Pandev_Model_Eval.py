@@ -20,7 +20,7 @@ from Pandev_Model_Test import (
     load_model,
 )
 
-feature_name = "strain_at_break"
+feature_name = "young's_modulus"
 
 def predict_feature_for_sequence(
     sequence: str,

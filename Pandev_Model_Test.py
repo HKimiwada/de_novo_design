@@ -27,8 +27,8 @@ CONFIG = {
     "amino_acids": ['A', 'V', 'F', 'I', 'L','D','E','K','S','T','Y','C','N','Q', 'P','M', 'R', 'H', 'W', 'G','X'],
     "paths": {
         "b_factor_model": "/Users/hikimiwada/Documents/先端生命科学研究/de_novo_design/Pandev_Model_Files/b_factor_model.pth",
-        "property_prediction_model": "/Users/hikimiwada/Documents/先端生命科学研究/de_novo_design/Pandev_Model_Files/Strain/best.pth",
-        "feature_names": "/Users/hikimiwada/Documents/先端生命科学研究/de_novo_design/Pandev_Model_Files/Strain/strain_break_features_name.npy",
+        "property_prediction_model": "/Users/hikimiwada/Documents/先端生命科学研究/de_novo_design/Pandev_Model_Files/young/best.pth",
+        "feature_names": "/Users/hikimiwada/Documents/先端生命科学研究/de_novo_design/Pandev_Model_Files/young/young_features_name.npy",
         "input_sequences_json": "input_sequences.json"
     },
     "hyperparameters": {
@@ -39,7 +39,7 @@ CONFIG = {
         "rnn_hidden_size2": 512, # Used in RNN hidden state init, even if not for a second LSTM layer
         "rnn_num_layers": 1,
         "rnn_seq_len": 100, # Added: This was 100 in the original Colab script for RNN init
-        "property_nn_input_features": 1398 # {tensile_strength: 911, strain_at_break: 1398, toughness: 871, young's_modulus: 825}
+        "property_nn_input_features": 825 # {tensile_strength: 911, strain_at_break: 1398, toughness: 871, young's_modulus: 825}
     },
     "accepted_spidroin_types": ['MaSp1', 'MaSp2', 'MaSp3', 'MaSp','MiSp', 'Spidroin']
 }
@@ -354,7 +354,7 @@ def run_prediction_pipeline(config_dict): # Renamed arg for clarity
     property_model = load_model(
         network, # User's class name
         config_dict["paths"]["property_prediction_model"],
-        DEVICE, # Pass the consistent DEVICE
+        property_nn_input_features=config_dict["hyperparameters"]["property_nn_input_features"],
         # No arguments for network.__init__()
     )
 
